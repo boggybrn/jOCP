@@ -37,6 +37,8 @@ public enum TelsisHandlerNumber {
     UPDATE_MATCHED_DIGITS       ((short) 0x0005, UpdateMatchedDigitsPayload.class),
     /** The FURNISH_CHARGING_INFORMATION handler. */
     FURNISH_CHARGING_INFORMATION((short) 0x0009),
+    /** The MAKE_INAP_FF_CALL handler. */
+    MAKE_INAP_FF_CALL           ((short) 0x001A, MakeINAPffCallPayload.class),
     /** The GET_NP_PARAMETERS handler. */
     GET_NP_PARAMETERS           ((short) 0x001D),
     /** The SET_NP_PARAMETERS handler. */

@@ -22,10 +22,13 @@
  */
 package com.telsis.jocp.sampleApp;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Properties;
 
 import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 import com.telsis.jocp.OCPLink;
@@ -38,6 +41,12 @@ import com.telsis.jocp.messages.DeliverTo;
 import com.telsis.jocp.messages.DeliverToResult;
 import com.telsis.jocp.messages.InitialDP;
 import com.telsis.jocp.messages.InitialDPResponse;
+import com.telsis.jocp.messages.TelsisHandler;
+import com.telsis.jocp.messages.TelsisHandlerResult;
+import com.telsis.jocp.messages.TelsisHandlerWithParty;
+import com.telsis.jocp.messages.telsishandler.MakeINAPffCallPayload;
+import com.telsis.jocp.messages.telsishandler.TelsisHandlerNumber;
+import com.telsis.jocp.messages.telsishandler.UpdateMatchedDigitsPayload;
 import com.telsis.jutils.signalling.GenericTelno;
 import com.telsis.jutils.signalling.SignallingUtil;
 import com.telsis.jutils.signalling.TelnoType;
@@ -67,15 +76,15 @@ public final class BasicOCPApp {
     /** Time to wait to allow the link to connect. */
     private static final long LINK_WAIT_TIME = 1000;
     /** Destination (FIN). **/
-    private static final byte[] FIN = new byte []{
-        4, 4, 1, 4, 8, 9, 7, 6, 0, 0, 0, 0};
+    private static byte[] fin = new byte [] {};  // set up from command line
     /** Source (CLI). **/
     private static final byte[] CLI = new byte []{
-        4, 4, 1, 4, 8, 9, 7, 6, 0, 0, 0, 1};
+        4, 9, 2, 2, 1, 9, 7, 6, 0, 0, 0, 1};
     /** Local IP to bind on. */
-    private static final String LOCAL_IP = "172.16.0.204";
+    private static final String LOCAL_IP = "0.0.0.0";
     /** Remote IP to connect to. */
-    private static final String REMOTE_IP = "172.16.0.63";
+    private static String remote_ip0 = "";  // set up from command line
+    private static String remote_ip1 = "";  // set up from command line
     /**
      * The amount of time to wait before checking again to see whether the call has finished.
      */
@@ -103,6 +112,36 @@ public final class BasicOCPApp {
      * @param args Command line arguments
      */
     public static void main(final String[] args) {
+        
+        if (args.length < 3) {
+            System.out.println("Usage:");
+            System.out.println("BasicOCPApp <2280 A IP address> <2280 B IP address> <dialled number> [verbose]");
+            System.exit(1);  
+        }
+        else {
+            remote_ip0 = args[0]; 
+            remote_ip1 = args[1];
+            
+            // turn the dialled number into a byte array
+            // there must be an easier way than this!!!
+            ByteBuffer buf = ByteBuffer.allocate(args[2].length());
+            char [] fin_char = args[2].toCharArray();
+            for( char c : fin_char)
+            {
+                buf.put((byte) Character.getNumericValue(c));
+            }
+            if(buf.hasArray()) {
+                fin = buf.array(); 
+            }
+            if ((args.length > 3) && (args[3].equals("verbose"))) {
+                logger.setLevel(Level.ALL); 
+                System.out.println("Verbose mode");
+            }
+            else {
+                logger.setLevel(Level.FATAL);
+            }
+        }
+        System.out.printf("to %s and %s for %s\n", remote_ip0, remote_ip1, Arrays.toString(fin));
         setup();
         //Wait a bit so the link has time to come up
         try {
@@ -146,12 +185,16 @@ public final class BasicOCPApp {
      */
     private static void setup() {
         BasicConfigurator.configure();
+        // System.out.println("Turning logging off");
+        // logger.setLevel(Level.FATAL);  // change level to INFO to see more output
         Properties properties = new Properties();
         properties.setProperty("ocpSystemUnitName", "BasicOCPApp");
-        properties.setProperty("ocpSystemNumLinks", "1");
-        properties.setProperty("ocpLink0RemoteAddress", REMOTE_IP);
+        properties.setProperty("ocpSystemNumLinks", "2");
+        properties.setProperty("ocpLink0RemoteAddress", remote_ip0);
         properties.setProperty("ocpLink0LocalAddress", LOCAL_IP);
-        properties.setProperty("ocpSystemLoggingLevel", "INFO");
+        properties.setProperty("ocpLink1RemoteAddress", remote_ip1);
+        properties.setProperty("ocpLink1LocalAddress", LOCAL_IP);
+        properties.setProperty("ocpSystemLoggingLevel", "FATAL");
         sysManager = new OCPSystemManager(properties);
         sysManager.connect();
         handler = new OCPMessageHandler() {
@@ -182,6 +225,20 @@ public final class BasicOCPApp {
             case DELIVER_TO:
                 doDeliverTo((DeliverTo) message);
                 break;
+                
+            case TELSIS_HANDLER:
+                doTelsisHandler((TelsisHandler) message);
+                break;
+            
+            case TELSIS_HANDLER_WITH_PARTY:    
+                doTelsisHandlerWithParty((TelsisHandlerWithParty) message);
+                break;
+                
+            case INAP_CONTINUE:
+                System.out.println("No service defined for this number - INAP continue sent");
+                sentResult = true;      // the call is over!
+                break;
+                
             default:
                 logger.warn("Unhandled message type");
                 logger.info("Type:" + message.getMessageType());
@@ -194,6 +251,43 @@ public final class BasicOCPApp {
             final InitialDPResponse iDPresponse) {
         remoteTID = iDPresponse.getOrigTID();
     }
+
+    /**
+     * Handle a Telsis handler message.
+     * @param doTelsisHandler Telsis Handler request
+     */
+    private static void doTelsisHandler(final TelsisHandler telsisHandler) {
+        remoteTID = telsisHandler.getOrigTID();
+        if(telsisHandler.getHandlerNumber() == TelsisHandlerNumber.UPDATE_MATCHED_DIGITS)
+        {
+            // just send a result so that we get the Deliver To
+            TelsisHandlerResult returnMessage = new TelsisHandlerResult();
+            UpdateMatchedDigitsPayload payload = new UpdateMatchedDigitsPayload();
+            payload.setMatchedDigits(1);
+            returnMessage.setPayload(payload);
+            sendOCPMessage(returnMessage);
+        }
+    }
+    
+    /**
+     * Handle a Telsis handler with party message.
+     * @param doTelsisHandler Telsis Handler request
+     */
+    private static void doTelsisHandlerWithParty(final TelsisHandlerWithParty telsisHandler) {
+        remoteTID = telsisHandler.getOrigTID();
+        if(telsisHandler.getHandlerNumber() == TelsisHandlerNumber.MAKE_INAP_FF_CALL)
+        {
+            MakeINAPffCallPayload payload = (MakeINAPffCallPayload) telsisHandler.getPayload();
+            System.out.println("INAP Connect to " + payload.getOutdialNo());
+            // Now send a result to stop the map
+            TelsisHandlerResult returnMessage = new TelsisHandlerResult();
+            sendOCPMessage(returnMessage);
+            // and set the flag to say we are done
+            sentResult = true;
+        }
+    }
+    
+    
     /**
      * Handle a deliver to message.
      * @param deliverTo Deliver To request
@@ -207,14 +301,20 @@ public final class BasicOCPApp {
         returnMessage.setZipNumber(deliverTo.getZipNumber());
         sendOCPMessage(returnMessage);
         sentResult = true;
+        System.out.print("Call Delivered To - " );
+        for (byte digit :deliverTo.getOutdialTelno().getUnpackedDigits() ) {
+            System.out.print(digit);
+            
+        }
     }
+    
     /**
      * Build an initial DP (detection point) message to the OCP link.
      * @return InitialDP message
      */
     private static InitialDP buildInitialDP() {
         InitialDP message = new InitialDP();
-        GenericTelno gFIN = new GenericTelno(TelnoType.INTERNATIONAL, FIN);
+        GenericTelno gFIN = new GenericTelno(TelnoType.INTERNATIONAL, fin);
         GenericTelno gCLI = new GenericTelno(TelnoType.INTERNATIONAL, CLI);
         OCPTelno ocpFIN = OCPUtil.convertGenericTelnoToOCPTelno(gFIN);
         OCPTelno ocpCLI = OCPUtil.convertGenericTelnoToOCPTelno(gCLI);
