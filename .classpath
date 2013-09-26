@@ -12,6 +12,6 @@
 			<attribute name="org.eclipse.jst.component.nondependency" value=""/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="/Users/John/sites/jocp/log4j-1.2.17.jar"/>
+	<classpathentry kind="lib" path="C:/Projects/TelsisServicesPlatform/log4j-1.2.17.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

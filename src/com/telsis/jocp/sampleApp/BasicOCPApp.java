@@ -81,7 +81,7 @@ public final class BasicOCPApp {
     private static final byte[] CLI = new byte []{
         4, 9, 2, 2, 1, 9, 7, 6, 0, 0, 0, 1};
     /** Local IP to bind on. */
-    private static final String LOCAL_IP = "0.0.0.0";
+    private static String local_ip = "";    // set up from command line
     /** Remote IP to connect to. */
     private static String remote_ip0 = "";  // set up from command line
     private static String remote_ip1 = "";  // set up from command line
@@ -104,28 +104,31 @@ public final class BasicOCPApp {
     /** Logging instance.     */
     private static Logger logger = Logger.getLogger(BasicOCPApp.class);
     /**
-     * Whether we have sent a result message yet.
+     * Whether we have completed the test yet.
      */
-    private static volatile boolean sentResult = false;
+    private static volatile boolean testDone = false;
+    private static volatile boolean skipAnswer = true;
+    
     /**
      * Entry point.
      * @param args Command line arguments
      */
     public static void main(final String[] args) {
         
-        if (args.length < 3) {
+        if (args.length < 5) {
             System.out.println("Usage:");
-            System.out.println("BasicOCPApp <2280 A IP address> <2280 B IP address> <dialled number> [verbose]");
+            System.out.println("BasicOCPApp <local IP address> <2280 A IP address> <2280 B IP address> <dialled number> <answer / noanswer>[verbose]");
             System.exit(1);  
         }
         else {
-            remote_ip0 = args[0]; 
-            remote_ip1 = args[1];
+            local_ip = args[0];
+            remote_ip0 = args[1]; 
+            remote_ip1 = args[2];
             
             // turn the dialled number into a byte array
             // there must be an easier way than this!!!
-            ByteBuffer buf = ByteBuffer.allocate(args[2].length());
-            char [] fin_char = args[2].toCharArray();
+            ByteBuffer buf = ByteBuffer.allocate(args[3].length());
+            char [] fin_char = args[3].toCharArray();
             for( char c : fin_char)
             {
                 buf.put((byte) Character.getNumericValue(c));
@@ -133,7 +136,12 @@ public final class BasicOCPApp {
             if(buf.hasArray()) {
                 fin = buf.array(); 
             }
-            if ((args.length > 3) && (args[3].equals("verbose"))) {
+            
+            if(args[4].equals("answer")) {
+              skipAnswer = false;  
+            }
+            
+            if ((args.length > 5) && (args[5].equals("verbose"))) {
                 logger.setLevel(Level.ALL); 
                 System.out.println("Verbose mode");
             }
@@ -157,7 +165,7 @@ public final class BasicOCPApp {
             logger.fatal("No link was available");
             System.exit(1);
         }
-        while (!sentResult) {
+        while (!testDone) {
             try {
                 Thread.sleep(WAIT_TIME);
             } catch (InterruptedException e) {
@@ -191,9 +199,9 @@ public final class BasicOCPApp {
         properties.setProperty("ocpSystemUnitName", "BasicOCPApp");
         properties.setProperty("ocpSystemNumLinks", "2");
         properties.setProperty("ocpLink0RemoteAddress", remote_ip0);
-        properties.setProperty("ocpLink0LocalAddress", LOCAL_IP);
+        properties.setProperty("ocpLink0LocalAddress", local_ip);
         properties.setProperty("ocpLink1RemoteAddress", remote_ip1);
-        properties.setProperty("ocpLink1LocalAddress", LOCAL_IP);
+        properties.setProperty("ocpLink1LocalAddress", local_ip);
         properties.setProperty("ocpSystemLoggingLevel", "FATAL");
         sysManager = new OCPSystemManager(properties);
         sysManager.connect();
@@ -236,7 +244,11 @@ public final class BasicOCPApp {
                 
             case INAP_CONTINUE:
                 System.out.println("No service defined for this number - INAP continue sent");
-                sentResult = true;      // the call is over!
+                testDone = true;      // the call is over!
+                break;
+               
+            case REQUEST_CLEARDOWN:
+                testDone = true;     
                 break;
                 
             default:
@@ -283,7 +295,7 @@ public final class BasicOCPApp {
             TelsisHandlerResult returnMessage = new TelsisHandlerResult();
             sendOCPMessage(returnMessage);
             // and set the flag to say we are done
-            sentResult = true;
+            testDone = true;
         }
     }
     
@@ -295,17 +307,24 @@ public final class BasicOCPApp {
     private static void doDeliverTo(final DeliverTo deliverTo) {
         remoteTID = deliverTo.getOrigTID();
         //Respond to the deliver to message
-        DeliverToResult returnMessage = new DeliverToResult();
-        returnMessage.setFlags(DeliverToResult.FLAG_OUTDIAL_SUCCEEDED);
+        DeliverToResult returnMessage = new DeliverToResult();        
         returnMessage.setTime(SignallingUtil.getOceanTime());
         returnMessage.setZipNumber(deliverTo.getZipNumber());
+        
+        if(skipAnswer) {   // treat the call as having failed
+            returnMessage.setOutdialFailureReason(SignallingUtil.Q850_CAUSE_USER_BUSY);
+        }
+        else {
+            returnMessage.setFlags(DeliverToResult.FLAG_OUTDIAL_SUCCEEDED);
+            testDone = true;
+        }
         sendOCPMessage(returnMessage);
-        sentResult = true;
+        
         System.out.print("Call Delivered To - " );
         for (byte digit :deliverTo.getOutdialTelno().getUnpackedDigits() ) {
             System.out.print(digit);
-            
         }
+        System.out.print("\n");
     }
     
     /**
