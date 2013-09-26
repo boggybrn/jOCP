@@ -1,5 +1,5 @@
 # Telsis Limited jOCP library
-
+Extended by John Schofield
 ## Licensing
 Copyright (C) Telsis Ltd. 2013.
 
@@ -28,10 +28,16 @@ This library provides an implementation of the Ocean Control Protocol (OCP) in J
 * Log4J
 
 ## Sample Application
-`com.telsis.jocp.sampleApp` provides the source code for a basic sample application that:
+`com.telsis.jocp.sampleApp` provides the source code for a basic sample application.
+This is an adapted version of the original Telsis application.  The aim being to extend this so that it can 
+be used as a  test client to verify the behaviour of maps running on the Telsis Ocean 2280.
 
-* Establishes an OCP link to a remote server
+At the moment it:
+
+* Establishes an OCP link to a pair of remote OCP servers
 * Notifies the remote server of an initial detection point event (Initial DP)
-* On receipt of request to perform a delivery, returns a `DeliverToResult` indicating the call was delivered successfully.
+* Replies automatically to the Update Matched Digits Telsis handler
+* On receipt of request to perform a delivery, prints the destination number and returns a `DeliverToResult` indicating the call was delivered successfully.
+* On receipt of a 'Make Fire and Forget INAP Call' Telsis handler with party, prints the destination number and returns a result
 
-To use the sample application you will need a remote OCP server (i.e. an Ocean 2280) running a Map that does a DeliverTo.
+To use the sample application you will need a remote OCP server (i.e. an Ocean 2280) running a Map that does a DeliverTo of DeliverTo(INAP)
