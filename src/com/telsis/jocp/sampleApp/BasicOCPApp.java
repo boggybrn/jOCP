@@ -41,6 +41,7 @@ import com.telsis.jocp.messages.DeliverTo;
 import com.telsis.jocp.messages.DeliverToResult;
 import com.telsis.jocp.messages.InitialDP;
 import com.telsis.jocp.messages.InitialDPResponse;
+import com.telsis.jocp.messages.InitialDPServiceKey;
 import com.telsis.jocp.messages.TelsisHandler;
 import com.telsis.jocp.messages.TelsisHandlerResult;
 import com.telsis.jocp.messages.TelsisHandlerWithParty;
@@ -85,6 +86,7 @@ public final class BasicOCPApp {
     /** Remote IP to connect to. */
     private static String remote_ip0 = "";  // set up from command line
     private static String remote_ip1 = "";  // set up from command line
+    private static int serviceKey = 1000;   // for use in initialDP - to trigger a particular map
     /**
      * The amount of time to wait before checking again to see whether the call has finished.
      */
@@ -332,7 +334,7 @@ public final class BasicOCPApp {
      * @return InitialDP message
      */
     private static InitialDP buildInitialDP() {
-        InitialDP message = new InitialDP();
+        InitialDPServiceKey message = new InitialDPServiceKey();
         GenericTelno gFIN = new GenericTelno(TelnoType.INTERNATIONAL, fin);
         GenericTelno gCLI = new GenericTelno(TelnoType.INTERNATIONAL, CLI);
         OCPTelno ocpFIN = OCPUtil.convertGenericTelnoToOCPTelno(gFIN);
@@ -346,6 +348,7 @@ public final class BasicOCPApp {
         message.setCLITypePlan(ocpFIN.getTypePlan());
         message.setCLIPresScreen((byte) (SignallingUtil.Q931_CLI_NETWORK
                 | SignallingUtil.Q931_CLI_PRESENTATION_ALLOWED));
+        message.setServiceKey(serviceKey);
         message.setOceanTime(SignallingUtil.getOceanTime());
         return message;
     }
