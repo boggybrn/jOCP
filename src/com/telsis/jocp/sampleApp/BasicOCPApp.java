@@ -27,6 +27,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Properties;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.GnuParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -82,10 +88,13 @@ public final class BasicOCPApp {
     private static final byte[] CLI = new byte []{
         4, 9, 2, 2, 1, 9, 7, 6, 0, 0, 0, 1};
     /** Local IP to bind on. */
-    private static String local_ip = "";    // set up from command line
+    private static String local_ip = "127.0.0.1";    // set up from command line
     /** Remote IP to connect to. */
-    private static String remote_ip0 = "";  // set up from command line
-    private static String remote_ip1 = "";  // set up from command line
+    private static String remote_ip0 = "127.0.0.1";  // set up from command line
+    private static String remote_ip1 = "127.0.0.1";  // set up from command line
+    private static int local_port = 0;  // set up from command line
+    private static int remote_port0 = 10012;  // set up from command line
+    private static int remote_port1 = 10012;  // set up from command line
     private static int serviceKey = 1000;   // for use in initialDP - to trigger a particular map
     /**
      * The amount of time to wait before checking again to see whether the call has finished.
@@ -116,42 +125,85 @@ public final class BasicOCPApp {
      * @param args Command line arguments
      */
     public static void main(final String[] args) {
+        CommandLineParser parser = new GnuParser();
+        Options options = new Options();
+        options.addOption("a", "calling", true, "calling number (4922116804109)");
+        options.addOption("b", "called", true, "called number (4922116804109)");
+        options.getOption("b").setRequired(true);
+        options.addOption("c", "client", true, "client IP with optional Port ('127.0.0.1:10023' or '127.0.0.1')");
+        options.addOption("m", "master", true, "master server IP with optional Port (default 10023)");
+        options.getOption("m").setRequired(true);
+        options.addOption("s", "slave", true, "slave server IP with optional Port (default 10023)");
+        options.addOption("A", "skip-answer", false, "simulates an unanswered call");
+        options.addOption("t", "tmr", false, "transmission medium required (integer value)");
+        options.addOption("v", "verbose", false, "verbose output");
+        options.addOption("h", "help", false, "prints this help");
+        HelpFormatter formatter = new HelpFormatter();
         
-        if (args.length < 5) {
-            System.out.println("Usage:");
-            System.out.println("BasicOCPApp <local IP address> <2280 A IP address> <2280 B IP address> <dialled number> <answer / noanswer>[verbose]");
-            System.exit(1);  
+        try {
+            CommandLine line = parser.parse(options, args);
+
+            if (line.hasOption("help")) {
+                formatter.printHelp("BasicOCPApp", options);
+                System.exit(1);
+            }
+            if (line.hasOption("calling")) {
+                throw new ParseException("'calling' is not yet implemented.");                
+            }
+            if (line.hasOption("tmr")) {
+                throw new ParseException("'tmr' is not yet implemented.");                
+            }
+            if (line.hasOption("called")) {
+                // turn the dialled number into a byte array
+                // there must be an easier way than this!!!
+                String called = line.getOptionValue("called");
+                ByteBuffer buf = ByteBuffer.allocate(called.length());
+                char[] fin_char = called.toCharArray();
+                for (char c : fin_char) {
+                    buf.put((byte) Character.getNumericValue(c));
+                }
+                if (buf.hasArray()) {
+                    fin = buf.array(); 
+                }
+            }
+            if (line.hasOption("client")) {
+                String[] parts = line.getOptionValue("client").split(":");
+                local_ip = parts[0];
+                if (parts.length == 2) {
+                    local_port = Integer.parseInt(parts[1]);
+                }
+            }
+            if (line.hasOption("master")) {
+                String[] parts = line.getOptionValue("master").split(":");
+                remote_ip0 = parts[0];
+                if (parts.length == 2) {
+                    remote_port0 = Integer.parseInt(parts[1]);
+                }
+            }
+            if (line.hasOption("slave")) {
+                String[] parts = line.getOptionValue("client").split(":");
+                remote_ip1 = parts[0];
+                if (parts.length == 2) {
+                    remote_port1 = Integer.parseInt(parts[1]);
+                }
+            }
+            skipAnswer = line.hasOption("skip-answer");
+            if (line.hasOption("verbose")) {
+                logger.setLevel(Level.ALL);
+            } else {
+                logger.setLevel(Level.WARN);
+            }
+        } catch (ParseException e) {
+            System.out.println("Invalid arguments: " + e);            
+            formatter.printHelp("BasicOCPApp", options);            
+            System.exit(1);
         }
-        else {
-            local_ip = args[0];
-            remote_ip0 = args[1]; 
-            remote_ip1 = args[2];
-            
-            // turn the dialled number into a byte array
-            // there must be an easier way than this!!!
-            ByteBuffer buf = ByteBuffer.allocate(args[3].length());
-            char [] fin_char = args[3].toCharArray();
-            for( char c : fin_char)
-            {
-                buf.put((byte) Character.getNumericValue(c));
-            }
-            if(buf.hasArray()) {
-                fin = buf.array(); 
-            }
-            
-            if(args[4].equals("answer")) {
-              skipAnswer = false;  
-            }
-            
-            if ((args.length > 5) && (args[5].equals("verbose"))) {
-                logger.setLevel(Level.ALL); 
-                System.out.println("Verbose mode");
-            }
-            else {
-                logger.setLevel(Level.FATAL);
-            }
-        }
-        System.out.printf("to %s and %s for %s\n", remote_ip0, remote_ip1, Arrays.toString(fin));
+        System.out.printf("from %s:%d to %s:%d and %s:%d for %s\n", 
+                local_ip, local_port,
+                remote_ip0, remote_port0,
+                remote_ip1, remote_port1,
+                Arrays.toString(fin));
+        
         setup();
         //Wait a bit so the link has time to come up
         try {
@@ -177,6 +229,7 @@ public final class BasicOCPApp {
         shutdown();
         System.exit(0);
     }
+
     /**
      * Retrieves a link and registers the task ID handler.
      * @return <code>true</code> if there's an available link
