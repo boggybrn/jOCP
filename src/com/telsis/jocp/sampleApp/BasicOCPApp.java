@@ -48,6 +48,8 @@ import com.telsis.jocp.messages.DeliverToResult;
 import com.telsis.jocp.messages.InitialDP;
 import com.telsis.jocp.messages.InitialDPResponse;
 import com.telsis.jocp.messages.InitialDPServiceKey;
+import com.telsis.jocp.messages.SetCDRExtendedFieldData;
+import com.telsis.jocp.messages.SetCDRExtendedFieldDataResult;
 import com.telsis.jocp.messages.TelsisHandler;
 import com.telsis.jocp.messages.TelsisHandlerResult;
 import com.telsis.jocp.messages.TelsisHandlerWithParty;
@@ -88,13 +90,10 @@ public final class BasicOCPApp {
     private static final byte[] CLI = new byte []{
         4, 9, 2, 2, 1, 9, 7, 6, 0, 0, 0, 1};
     /** Local IP to bind on. */
-    private static String local_ip = "127.0.0.1";    // set up from command line
+    private static String local_ip = "0.0.0.0";    // set up from command line
     /** Remote IP to connect to. */
     private static String remote_ip0 = "127.0.0.1";  // set up from command line
     private static String remote_ip1 = "127.0.0.1";  // set up from command line
-    private static int local_port = 0;  // set up from command line
-    private static int remote_port0 = 10012;  // set up from command line
-    private static int remote_port1 = 10012;  // set up from command line
     private static int serviceKey = 1000;   // for use in initialDP - to trigger a particular map
     /**
      * The amount of time to wait before checking again to see whether the call has finished.
@@ -130,10 +129,11 @@ public final class BasicOCPApp {
         options.addOption("a", "calling", true, "calling number (4922116804109)");
         options.addOption("b", "called", true, "called number (4922116804109)");
         options.getOption("b").setRequired(true);
-        options.addOption("c", "client", true, "client IP with optional Port ('127.0.0.1:10023' or '127.0.0.1')");
-        options.addOption("m", "master", true, "master server IP with optional Port (default 10023)");
+        options.addOption("c", "client", true, "client IP Address (default is '0.0.0.0' ie. any)");
+        options.addOption("k", "service-key", true, "service-key defaults to 1000");
+        options.addOption("m", "master", true, "master server IP address");
         options.getOption("m").setRequired(true);
-        options.addOption("s", "slave", true, "slave server IP with optional Port (default 10023)");
+        options.addOption("s", "slave", true, "slave server IP address");
         options.addOption("A", "skip-answer", false, "simulates an unanswered call");
         options.addOption("t", "tmr", false, "transmission medium required (integer value)");
         options.addOption("v", "verbose", false, "verbose output");
@@ -167,25 +167,16 @@ public final class BasicOCPApp {
                 }
             }
             if (line.hasOption("client")) {
-                String[] parts = line.getOptionValue("client").split(":");
-                local_ip = parts[0];
-                if (parts.length == 2) {
-                    local_port = Integer.parseInt(parts[1]);
-                }
+                local_ip = line.getOptionValue("client");
+            }
+            if (line.hasOption("service-key")) {
+                serviceKey = Integer.parseInt(line.getOptionValue("service-key"));
             }
             if (line.hasOption("master")) {
-                String[] parts = line.getOptionValue("master").split(":");
-                remote_ip0 = parts[0];
-                if (parts.length == 2) {
-                    remote_port0 = Integer.parseInt(parts[1]);
-                }
+                remote_ip0 = line.getOptionValue("master");
             }
             if (line.hasOption("slave")) {
-                String[] parts = line.getOptionValue("client").split(":");
-                remote_ip1 = parts[0];
-                if (parts.length == 2) {
-                    remote_port1 = Integer.parseInt(parts[1]);
-                }
+                remote_ip1 = line.getOptionValue("slave");
             }
             skipAnswer = line.hasOption("skip-answer");
             if (line.hasOption("verbose")) {
@@ -198,10 +189,10 @@ public final class BasicOCPApp {
             formatter.printHelp("BasicOCPApp", options);            
             System.exit(1);
         }
-        System.out.printf("from %s:%d to %s:%d and %s:%d for %s\n", 
-                local_ip, local_port,
-                remote_ip0, remote_port0,
-                remote_ip1, remote_port1,
+        System.out.printf("from %s to %s and %s for %s\n", 
+                local_ip, 
+                remote_ip0,
+                remote_ip1,
                 Arrays.toString(fin));
         
         setup();
@@ -306,6 +297,10 @@ public final class BasicOCPApp {
                 testDone = true;     
                 break;
                 
+            case SET_CDR_EXTENDED_FIELD_DATA:
+                doSetCDRExtendedFieldData((SetCDRExtendedFieldData) message);
+                break;
+                
             default:
                 logger.warn("Unhandled message type");
                 logger.info("Type:" + message.getMessageType());
@@ -380,6 +375,25 @@ public final class BasicOCPApp {
             System.out.print(digit);
         }
         System.out.print("\n");
+    }
+  
+    
+    /**
+     * Handle a set cdr extended field data message.
+     * @param SetCDRExtendedFieldData fieldData request
+     */   
+    private static void doSetCDRExtendedFieldData(final SetCDRExtendedFieldData fieldData) {
+        // send a result back to ack the message
+        SetCDRExtendedFieldDataResult returnMessage = new SetCDRExtendedFieldDataResult(); 
+        sendOCPMessage(returnMessage);
+        byte[] extendedData = fieldData.getRawData();
+        long serviceVersion = ((extendedData[0] << 24) & 0xff000000) | ((extendedData[1] << 16) & 0xff0000) | ((extendedData[2] << 8) & 0xff00) | (extendedData[3] & 0xff);
+        long blockCdrId = ((extendedData[4] << 24) & 0xff000000) | ((extendedData[5] << 16) & 0xff0000) | ((extendedData[6] << 8) & 0xff00) | (extendedData[7] & 0xff);
+
+        // print out the service version & block ID that would go in the CDR
+        System.out.printf("CDR data service version = %d last block cdr-id = %d \n", 
+                serviceVersion,
+                blockCdrId);
     }
     
     /**
