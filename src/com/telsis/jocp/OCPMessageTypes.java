@@ -205,4 +205,16 @@ public enum OCPMessageTypes {
      * @see DeliverToWithFlags
      */
     DELIVER_TO_WITH_FLAGS,
+    /**
+     * Send this message to report that the playing of an audio prompt has completed
+     *
+     * @see DonePlay
+     */
+    DONE_PLAY,
+    /**
+     * Send this message to play an audio prompt.
+     *
+     * @see PlayFile
+     */
+    PLAY_FILE,
 }

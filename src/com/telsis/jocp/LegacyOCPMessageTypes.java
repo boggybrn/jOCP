@@ -152,6 +152,22 @@ public enum LegacyOCPMessageTypes {
     TELSIS_HANDLER_RESULT((short) 0x1007, TelsisHandlerResult.class,
             OCPMessageTypes.TELSIS_HANDLER_RESULT, false, true),
     /**
+     * Send this message to report that the playing of an audio prompt
+     * has completed.
+     * 
+     * @see DonePlay
+     */
+    DONE_PLAY((short) 0x1008, DonePlay.class,
+                            OCPMessageTypes.DONE_PLAY, false, true),
+            
+    /**
+     * Send this message to cause a call handling unit to play an audio prompt.
+     *
+     * @see PlayFile
+     */
+    PLAY_FILE((short) 0x1009, PlayFile.class,
+                    OCPMessageTypes.PLAY_FILE, false, true),
+    /**
      * Send this message to instruct a call-handling platform to outdial using
      * the specified number and connect an existing caller to the outdialled
      * party.

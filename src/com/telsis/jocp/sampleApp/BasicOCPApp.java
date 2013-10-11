@@ -45,9 +45,11 @@ import com.telsis.jocp.OCPTelno;
 import com.telsis.jocp.OCPUtil;
 import com.telsis.jocp.messages.DeliverTo;
 import com.telsis.jocp.messages.DeliverToResult;
+import com.telsis.jocp.messages.DonePlay;
 import com.telsis.jocp.messages.InitialDP;
 import com.telsis.jocp.messages.InitialDPResponse;
 import com.telsis.jocp.messages.InitialDPServiceKey;
+import com.telsis.jocp.messages.PlayFile;
 import com.telsis.jocp.messages.SetCDRExtendedFieldData;
 import com.telsis.jocp.messages.SetCDRExtendedFieldDataResult;
 import com.telsis.jocp.messages.TelsisHandler;
@@ -301,6 +303,10 @@ public final class BasicOCPApp {
                 doSetCDRExtendedFieldData((SetCDRExtendedFieldData) message);
                 break;
                 
+            case PLAY_FILE:
+                doPlayFile((PlayFile) message);
+                break;
+                
             default:
                 logger.warn("Unhandled message type");
                 logger.info("Type:" + message.getMessageType());
@@ -314,6 +320,18 @@ public final class BasicOCPApp {
         remoteTID = iDPresponse.getOrigTID();
     }
 
+    /** Handle the a Play File request. */
+    private static void doPlayFile(final PlayFile playFile) {
+        long file = playFile.getFileNo();
+        System.out.printf("Play File - %d\n", file);
+        if(playFile.getFlags() != 0) {          //has a play done been requested?
+            DonePlay returnMessage = new DonePlay();
+            returnMessage.setZipNumber(playFile.getZipNumber());
+            sendOCPMessage(returnMessage);
+        }
+    }
+
+    
     /**
      * Handle a Telsis handler message.
      * @param doTelsisHandler Telsis Handler request
