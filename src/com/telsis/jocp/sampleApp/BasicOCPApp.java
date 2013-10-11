@@ -91,6 +91,7 @@ public final class BasicOCPApp {
     /** Source (CLI). **/
     private static final byte[] CLI = new byte []{
         4, 9, 2, 2, 1, 9, 7, 6, 0, 0, 0, 1};
+    private static byte[] cli = CLI;
     /** Local IP to bind on. */
     private static String local_ip = "0.0.0.0";    // set up from command line
     /** Remote IP to connect to. */
@@ -150,7 +151,17 @@ public final class BasicOCPApp {
                 System.exit(1);
             }
             if (line.hasOption("calling")) {
-                throw new ParseException("'calling' is not yet implemented.");                
+                // turn the calling number into a byte array
+                // there must be an easier way than this!!!
+                String calling = line.getOptionValue("calling");
+                ByteBuffer buf = ByteBuffer.allocate(calling.length());
+                char[] cli_char = calling.toCharArray();
+                for (char c : cli_char) {
+                    buf.put((byte) Character.getNumericValue(c));
+                }
+                if (buf.hasArray()) {
+                    cli = buf.array(); 
+                }   
             }
             if (line.hasOption("tmr")) {
                 throw new ParseException("'tmr' is not yet implemented.");                
@@ -421,7 +432,7 @@ public final class BasicOCPApp {
     private static InitialDP buildInitialDP() {
         InitialDPServiceKey message = new InitialDPServiceKey();
         GenericTelno gFIN = new GenericTelno(TelnoType.INTERNATIONAL, fin);
-        GenericTelno gCLI = new GenericTelno(TelnoType.INTERNATIONAL, CLI);
+        GenericTelno gCLI = new GenericTelno(TelnoType.INTERNATIONAL, cli);
         OCPTelno ocpFIN = OCPUtil.convertGenericTelnoToOCPTelno(gFIN);
         OCPTelno ocpCLI = OCPUtil.convertGenericTelnoToOCPTelno(gCLI);
         message.setOrigLegID((short) 1);

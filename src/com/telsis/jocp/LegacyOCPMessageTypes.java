@@ -166,7 +166,7 @@ public enum LegacyOCPMessageTypes {
      * @see PlayFile
      */
     PLAY_FILE((short) 0x1009, PlayFile.class,
-                    OCPMessageTypes.PLAY_FILE, false, true),
+                    OCPMessageTypes.PLAY_FILE, true, false),
     /**
      * Send this message to instruct a call-handling platform to outdial using
      * the specified number and connect an existing caller to the outdialled
